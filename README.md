@@ -1,11 +1,26 @@
 
 # TALLK - THE NEXT GEN CHATTING APP
+
 > [!IMPORTANT]
-> Before running tallk.py, ensure you have Python installed and run the command "pip install paho-mqtt sounddevice", otherwise Tallk will not launch properly.
+> Install Python first, then run `py -3.14 -m pip install paho-mqtt sounddevice` before using voice calls.
 
-Tallk is a chatting app, It's simple:
-1. Choose a name
-2. Log in
+Tallk is a simple chat and voice-call app.
 
-When you and other Tallk users sign in, you will automatically enter a chatroom with other Tallk users that are online. You can also click on a Tallk user's name to start a voice call.
+## Run
+
+```powershell
+py -3.14 tallk.py
+```
+
+## How It Works
+
+1. Open Tallk.
+2. Enter your display name in the login popup
+3. Click someone's name to voice call them.
+
+## Notes
+
+- `paho-mqtt` is required for chat and presence.
+- `sounddevice` is required for live voice calls.
+- `sounds/call.wav` should be included when you package or share the app so the ringtone works as expected.
 

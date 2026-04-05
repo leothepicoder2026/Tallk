@@ -26,6 +26,7 @@ AUDIO_SAMPLE_RATE = 16000
 AUDIO_CHANNELS = 1
 AUDIO_BLOCKSIZE = 2048
 CALL_SOUND_URL = "https://raw.githubusercontent.com/leothepicoder2026/Tallk/main/sounds/call.wav"
+FIXED_ROOM = "Tallk Servers"
 
 
 class ChatApp:
@@ -33,11 +34,11 @@ class ChatApp:
         self.root = tk.Tk()
         self.root.title("Tallk Chat")
         self.root.overrideredirect(True)
-        self.root.geometry("1000x700")
+        self.root.configure(bg="#0f172a")
+        self.root.geometry(f"{self.root.winfo_screenwidth()}x{self.root.winfo_screenheight()}+0+0")
         self.root.resizable(True, True)
 
         self.username_var = tk.StringVar(value="User")
-        self.room_var = tk.StringVar(value="Tallk Servers")
         self.session_id = uuid.uuid4().hex[:8]
         self.mqtt_client = None
         self.connected = False
@@ -63,90 +64,74 @@ class ChatApp:
         self.audio_input_stream = None
         self.audio_output_stream = None
         self.audio_thread = None
+        self._active_call_popup = None
 
         self._build_interface()
         self.root.protocol("WM_DELETE_WINDOW", self.close)
         self.root.after(100, self._process_receive_queue)
+        self.root.after(150, self._show_login_popup)
         self.root.mainloop()
 
     def _build_interface(self):
-        title_bar = tk.Frame(self.root, bg="#1f2937", height=34)
-        title_bar.pack(fill="x")
-        title_bar.pack_propagate(False)
+        app_shell = tk.Frame(self.root, bg="#0f172a")
+        app_shell.pack(fill="both", expand=True)
 
-        title_label = tk.Label(title_bar, text="Tallk Chat", bg="#1f2937", fg="white", padx=10, font=("Segoe UI", 10, "bold"))
-        title_label.pack(side="left")
+        app_card = tk.Frame(app_shell, bg="#f8fafc", bd=1, relief="solid", padx=18, pady=18)
+        app_card.place(relx=0.5, rely=0.5, anchor="center", relwidth=0.92, relheight=0.9)
 
-        close_button = tk.Button(
-            title_bar,
-            text="X",
-            command=self.close,
-            bg="#1f2937",
-            fg="white",
-            activebackground="#dc2626",
-            activeforeground="white",
-            bd=0,
-            padx=12,
-            pady=4,
-            font=("Segoe UI", 10, "bold"),
-        )
-        close_button.pack(side="right")
-
-        for widget in (title_bar, title_label):
-            widget.bind("<ButtonPress-1>", self._start_window_drag)
-            widget.bind("<B1-Motion>", self._drag_window)
-
-        top_frame = tk.Frame(self.root, padx=10, pady=10)
+        top_frame = tk.Frame(app_card, bg="#f8fafc")
         top_frame.pack(fill="x")
 
-        self.name_label = tk.Label(top_frame, text="Name:", width=8, anchor="w")
-        self.name_label.grid(row=0, column=0)
-        self.name_entry = tk.Entry(top_frame, textvariable=self.username_var, width=18)
-        self.name_entry.grid(row=0, column=1, sticky="w")
+        header_block = tk.Frame(top_frame, bg="#f8fafc")
+        header_block.pack(side="left")
+        tk.Label(header_block, text="Tallk Chat", bg="#f8fafc", fg="#0f172a", font=("Segoe UI", 20, "bold")).pack(anchor="w")
+        self.room_label = tk.Label(header_block, text=f"Room: {FIXED_ROOM}", bg="#f8fafc", fg="#64748b", anchor="w", font=("Segoe UI", 10, "bold"))
+        self.room_label.pack(anchor="w", pady=(2, 0))
 
-        self.connect_button = tk.Button(top_frame, text="Log In", width=16, command=self.connect)
-        self.connect_button.grid(row=0, column=2, sticky="e")
+        controls = tk.Frame(top_frame, bg="#f8fafc")
+        controls.pack(side="right")
+        self.connect_button = tk.Button(controls, text="Log In", width=16, command=self._show_login_popup, bg="#2563eb", fg="white", activebackground="#1d4ed8", activeforeground="white", bd=0, padx=14, pady=8, font=("Segoe UI", 10, "bold"))
+        self.connect_button.pack(side="left", padx=(0, 10))
+        tk.Button(controls, text="Close", width=12, command=self.close, bg="#e2e8f0", fg="#0f172a", activebackground="#cbd5e1", activeforeground="#0f172a", bd=0, padx=14, pady=8, font=("Segoe UI", 10, "bold")).pack(side="left")
 
-        self.status_label = tk.Label(self.root, text="Ready", anchor="w", padx=10)
+        self.status_label = tk.Label(app_card, text="Ready", anchor="w", bg="#f8fafc", fg="#334155", padx=4)
         self.status_label.pack(fill="x")
-        self.call_status_label = tk.Label(self.root, text="Click someone in the room to start a voice call.", anchor="w", padx=10, fg="#374151")
+        self.call_status_label = tk.Label(app_card, text="Click someone in the room to start a voice call.", anchor="w", bg="#f8fafc", padx=4, fg="#374151")
         self.call_status_label.pack(fill="x")
 
-        main_frame = tk.Frame(self.root)
+        main_frame = tk.Frame(app_card, bg="#f8fafc")
         main_frame.pack(fill="both", expand=True, padx=10, pady=(4, 0))
 
-        left_frame = tk.Frame(main_frame)
+        left_frame = tk.Frame(main_frame, bg="#f8fafc")
         left_frame.pack(side="left", fill="both", expand=True)
 
-        chat_label = tk.Label(left_frame, text="Chat Room", anchor="w", padx=4, font=("Segoe UI", 10, "bold"))
+        chat_label = tk.Label(left_frame, text="Chat Room", anchor="w", bg="#f8fafc", padx=4, font=("Segoe UI", 10, "bold"))
         chat_label.pack(fill="x")
 
-        self.chat_area = ScrolledText(left_frame, wrap="word", state="disabled", font=("Segoe UI", 10), bg="white")
+        self.chat_area = ScrolledText(left_frame, wrap="word", state="disabled", font=("Segoe UI", 10), bg="white", relief="flat", bd=1)
         self.chat_area.pack(fill="both", expand=True, padx=(0, 6))
 
-        input_frame = tk.Frame(left_frame)
+        input_frame = tk.Frame(left_frame, bg="#f8fafc")
         input_frame.pack(fill="x", pady=(6, 0))
 
-        tk.Label(input_frame, text="Message:", width=8, anchor="w").pack(side="left")
+        tk.Label(input_frame, text="Message:", width=8, anchor="w", bg="#f8fafc").pack(side="left")
         self.message_var = tk.StringVar()
         self.message_entry = tk.Entry(input_frame, textvariable=self.message_var)
         self.message_entry.pack(side="left", fill="x", expand=True)
         self.message_entry.bind("<Return>", lambda event: self.send_message())
 
-        tk.Button(input_frame, text="Send", width=12, command=self.send_message).pack(side="left", padx=(6, 0))
+        tk.Button(input_frame, text="Send", width=12, command=self.send_message, bg="#2563eb", fg="white", activebackground="#1d4ed8", activeforeground="white", bd=0, padx=14, pady=8, font=("Segoe UI", 10, "bold")).pack(side="left", padx=(6, 0))
 
-        right_frame = tk.Frame(main_frame, width=140)
+        right_frame = tk.Frame(main_frame, width=180, bg="#f8fafc")
         right_frame.pack(side="right", fill="y")
         right_frame.pack_propagate(False)
 
-        tk.Label(right_frame, text="People in room", anchor="w", padx=4, font=("Segoe UI", 10, "bold")).pack(fill="x")
-        self.participants_text = ScrolledText(right_frame, state="disabled", font=("Segoe UI", 9), height=20, width=18)
+        tk.Label(right_frame, text="People in room", anchor="w", bg="#f8fafc", padx=4, font=("Segoe UI", 10, "bold")).pack(fill="x")
+        self.participants_text = ScrolledText(right_frame, state="disabled", font=("Segoe UI", 9), height=20, width=18, relief="flat", bd=1)
         self.participants_text.pack(fill="both", expand=True, padx=(0, 0), pady=(4, 0))
         self.participants_text.bind("<Motion>", self._update_participant_hover)
         self.participants_text.bind("<Leave>", lambda event: self.participants_text.configure(cursor=""))
 
-        self.hangup_button = tk.Button(right_frame, text="Hang Up", state="disabled", command=self._end_active_call)
-        self.hangup_button.pack(fill="x", pady=(6, 0))
 
     def _get_color(self, username):
         colors = ["#1e90ff", "#32cd32", "#dc143c", "#9370db", "#ff8c00", "#8b4513", "#00ced1", "#ff69b4"]
@@ -170,68 +155,66 @@ class ChatApp:
         y = event.y_root - dialog._drag_offset_y
         dialog.geometry(f"+{x}+{y}")
 
+    def _center_on_screen(self, window, min_width=0):
+        window.update_idletasks()
+        width = max(window.winfo_width(), min_width)
+        height = window.winfo_height()
+        screen_w = self.root.winfo_screenwidth()
+        screen_h = self.root.winfo_screenheight()
+        x = max((screen_w - width) // 2, 0)
+        y = max((screen_h - height) // 2, 0)
+        window.geometry(f"{width}x{height}+{x}+{y}")
+
+    def _make_fullscreen_popup(self, dialog, card_bg, min_width=340):
+        dialog.overrideredirect(True)
+        dialog.transient(self.root)
+        dialog.configure(bg="#0f172a")
+        dialog.geometry(f"{self.root.winfo_screenwidth()}x{self.root.winfo_screenheight()}+0+0")
+        shell = tk.Frame(dialog, bg="#0f172a")
+        shell.pack(fill="both", expand=True)
+        card = tk.Frame(shell, bg=card_bg, bd=1, relief="solid", padx=24, pady=24)
+        card.place(relx=0.5, rely=0.5, anchor="center")
+        if min_width:
+            card.configure(width=min_width)
+        dialog.lift()
+        dialog.attributes("-topmost", True)
+        return card
+
     def _show_dialog(self, title, message):
         self._stop_ringtone()
         if self._active_dialog is not None and self._active_dialog.winfo_exists():
             self._active_dialog.destroy()
 
         dialog = tk.Toplevel(self.root)
-        dialog.overrideredirect(True)
-        dialog.transient(self.root)
-        dialog.configure(bg="#d1d5db", bd=1, relief="solid")
-        dialog._drag_offset_x = 0
-        dialog._drag_offset_y = 0
         self._active_dialog = dialog
 
-        title_bar = tk.Frame(dialog, bg="#1f2937", height=34)
-        title_bar.pack(fill="x")
-        title_bar.pack_propagate(False)
+        body = self._make_fullscreen_popup(dialog, "#f8fafc", min_width=320)
 
-        title_label = tk.Label(title_bar, text=title, bg="#1f2937", fg="white", padx=10, font=("Segoe UI", 10, "bold"))
-        title_label.pack(side="left")
+        badge = tk.Canvas(body, width=72, height=72, bg="#f8fafc", highlightthickness=0)
+        badge.pack()
+        badge.create_oval(6, 6, 66, 66, fill="#dbeafe", outline="#93c5fd", width=2)
+        badge.create_text(36, 36, text="i", fill="#1d4ed8", font=("Segoe UI", 24, "bold"))
 
-        close_button = tk.Button(
-            title_bar,
-            text="X",
+        tk.Label(body, text=title, bg="#f8fafc", fg="#0f172a", font=("Segoe UI", 18, "bold")).pack(pady=(14, 8))
+        tk.Label(body, text=message, bg="#f8fafc", fg="#334155", justify="center", wraplength=320, font=("Segoe UI", 11)).pack()
+
+        ok_button = tk.Button(
+            body,
+            text="OK",
+            width=12,
             command=dialog.destroy,
-            bg="#1f2937",
+            bg="#2563eb",
             fg="white",
-            activebackground="#dc2626",
+            activebackground="#1d4ed8",
             activeforeground="white",
             bd=0,
-            padx=12,
-            pady=4,
+            padx=18,
+            pady=10,
             font=("Segoe UI", 10, "bold"),
         )
-        close_button.pack(side="right")
+        ok_button.pack(pady=(18, 0))
 
-        body = tk.Frame(dialog, bg="white", padx=18, pady=16)
-        body.pack(fill="both", expand=True)
-
-        message_label = tk.Label(body, text=message, bg="white", justify="left", wraplength=300, font=("Segoe UI", 10))
-        message_label.pack(anchor="w")
-
-        ok_button = tk.Button(body, text="OK", width=10, command=dialog.destroy)
-        ok_button.pack(anchor="e", pady=(14, 0))
-
-        for widget in (title_bar, title_label):
-            widget.bind("<ButtonPress-1>", lambda event, win=dialog: self._start_dialog_drag(event, win))
-            widget.bind("<B1-Motion>", lambda event, win=dialog: self._drag_dialog(event, win))
-
-        dialog.update_idletasks()
-        root_x = self.root.winfo_x()
-        root_y = self.root.winfo_y()
-        root_w = self.root.winfo_width()
-        root_h = self.root.winfo_height()
-        dialog_w = dialog.winfo_width()
-        dialog_h = dialog.winfo_height()
-        x = root_x + max((root_w - dialog_w) // 2, 0)
-        y = root_y + max((root_h - dialog_h) // 2, 0)
-        dialog.geometry(f"+{x}+{y}")
-        dialog.lift()
-        dialog.attributes("-topmost", True)
-
-        focus_target = self.message_entry if self.connected else self.name_entry
+        focus_target = self.message_entry if self.connected else self.connect_button
 
         def close_dialog(event=None):
             if self._active_dialog is dialog:
@@ -253,7 +236,6 @@ class ChatApp:
         dialog.bind("<Escape>", close_dialog)
         dialog.bind("<Return>", close_dialog)
         dialog.bind("<Destroy>", clear_active_dialog)
-        close_button.configure(command=close_dialog)
         ok_button.configure(command=close_dialog)
 
         dialog.grab_set()
@@ -267,42 +249,20 @@ class ChatApp:
             self._active_dialog.destroy()
 
         dialog = tk.Toplevel(self.root)
-        dialog.overrideredirect(True)
-        dialog.transient(self.root)
-        dialog.configure(bg="#d1d5db", bd=1, relief="solid")
-        dialog._drag_offset_x = 0
-        dialog._drag_offset_y = 0
         self._active_dialog = dialog
 
-        title_bar = tk.Frame(dialog, bg="#1f2937", height=34)
-        title_bar.pack(fill="x")
-        title_bar.pack_propagate(False)
+        body = self._make_fullscreen_popup(dialog, "#f8fafc", min_width=340)
 
-        title_label = tk.Label(title_bar, text=title, bg="#1f2937", fg="white", padx=10, font=("Segoe UI", 10, "bold"))
-        title_label.pack(side="left")
+        badge = tk.Canvas(body, width=72, height=72, bg="#f8fafc", highlightthickness=0)
+        badge.pack()
+        badge.create_oval(6, 6, 66, 66, fill="#ede9fe", outline="#c4b5fd", width=2)
+        badge.create_text(36, 36, text="?", fill="#6d28d9", font=("Segoe UI", 22, "bold"))
 
-        close_button = tk.Button(
-            title_bar,
-            text="X",
-            command=dialog.destroy,
-            bg="#1f2937",
-            fg="white",
-            activebackground="#dc2626",
-            activeforeground="white",
-            bd=0,
-            padx=12,
-            pady=4,
-            font=("Segoe UI", 10, "bold"),
-        )
-        close_button.pack(side="right")
+        tk.Label(body, text=title, bg="#f8fafc", fg="#0f172a", font=("Segoe UI", 18, "bold")).pack(pady=(14, 8))
+        tk.Label(body, text=message, bg="#f8fafc", fg="#334155", justify="center", wraplength=320, font=("Segoe UI", 11)).pack()
 
-        body = tk.Frame(dialog, bg="white", padx=18, pady=16)
-        body.pack(fill="both", expand=True)
-
-        tk.Label(body, text=message, bg="white", justify="left", wraplength=300, font=("Segoe UI", 10)).pack(anchor="w")
-
-        button_row = tk.Frame(body, bg="white")
-        button_row.pack(anchor="e", pady=(14, 0))
+        button_row = tk.Frame(body, bg="#f8fafc")
+        button_row.pack(fill="x", pady=(18, 0))
         confirmed = {"value": False}
 
         def close_dialog(event=None):
@@ -323,34 +283,245 @@ class ChatApp:
             close_dialog()
             on_confirm()
 
-        cancel_button = tk.Button(button_row, text="Decline", width=10, command=close_dialog)
-        cancel_button.pack(side="right")
+        cancel_button = tk.Button(
+            button_row,
+            text="Cancel",
+            command=close_dialog,
+            bg="#e2e8f0",
+            fg="#0f172a",
+            activebackground="#cbd5e1",
+            activeforeground="#0f172a",
+            bd=0,
+            padx=18,
+            pady=10,
+            font=("Segoe UI", 10, "bold"),
+        )
+        cancel_button.pack(side="left", fill="x", expand=True, padx=(0, 8))
 
-        confirm_button = tk.Button(button_row, text=confirm_text, width=10, command=confirm)
-        confirm_button.pack(side="right", padx=(0, 8))
+        confirm_button = tk.Button(
+            button_row,
+            text=confirm_text,
+            command=confirm,
+            bg="#2563eb",
+            fg="white",
+            activebackground="#1d4ed8",
+            activeforeground="white",
+            bd=0,
+            padx=18,
+            pady=10,
+            font=("Segoe UI", 10, "bold"),
+        )
+        confirm_button.pack(side="left", fill="x", expand=True, padx=(8, 0))
 
-        for widget in (title_bar, title_label):
-            widget.bind("<ButtonPress-1>", lambda event, win=dialog: self._start_dialog_drag(event, win))
-            widget.bind("<B1-Motion>", lambda event, win=dialog: self._drag_dialog(event, win))
-
-        dialog.update_idletasks()
-        root_x = self.root.winfo_x()
-        root_y = self.root.winfo_y()
-        root_w = self.root.winfo_width()
-        root_h = self.root.winfo_height()
-        dialog_w = dialog.winfo_width()
-        dialog_h = dialog.winfo_height()
-        x = root_x + max((root_w - dialog_w) // 2, 0)
-        y = root_y + max((root_h - dialog_h) // 2, 0)
-        dialog.geometry(f"+{x}+{y}")
-        dialog.lift()
-        dialog.attributes("-topmost", True)
         dialog.bind("<Escape>", close_dialog)
         dialog.bind("<Return>", confirm)
-        close_button.configure(command=close_dialog)
         dialog.grab_set()
         dialog.focus_force()
         confirm_button.focus_set()
+
+    def _show_login_popup(self):
+        if self.connected:
+            self._show_dialog("Already online", "You are already online.")
+            return
+        if self._active_dialog is not None and self._active_dialog.winfo_exists():
+            self._active_dialog.destroy()
+
+        dialog = tk.Toplevel(self.root)
+        self._active_dialog = dialog
+
+        body = self._make_fullscreen_popup(dialog, "#eff6ff", min_width=360)
+
+        badge = tk.Canvas(body, width=76, height=76, bg="#eff6ff", highlightthickness=0)
+        badge.pack()
+        badge.create_oval(6, 6, 70, 70, fill="#dbeafe", outline="#93c5fd", width=2)
+        badge.create_text(38, 38, text="T", fill="#1d4ed8", font=("Segoe UI", 24, "bold"))
+
+        tk.Label(body, text="Log In", bg="#eff6ff", fg="#0f172a", font=("Segoe UI", 18, "bold")).pack(pady=(14, 6))
+        tk.Label(body, text="Join the room to start chatting and calling.", bg="#eff6ff", fg="#334155", font=("Segoe UI", 11)).pack(pady=(0, 16))
+
+        form = tk.Frame(body, bg="#eff6ff")
+        form.pack(fill="x")
+
+        tk.Label(form, text="Display name", anchor="w", bg="#eff6ff", fg="#334155", font=("Segoe UI", 10, "bold")).pack(fill="x")
+        name_entry = tk.Entry(form, textvariable=self.username_var, font=("Segoe UI", 10))
+        name_entry.pack(fill="x", pady=(4, 12))
+
+        button_row = tk.Frame(body, bg="#eff6ff")
+        button_row.pack(fill="x", pady=(18, 0))
+
+        def close_dialog(event=None):
+            if self._active_dialog is dialog:
+                self._active_dialog = None
+            if dialog.winfo_exists():
+                try:
+                    dialog.grab_release()
+                except tk.TclError:
+                    pass
+                dialog.destroy()
+            self.root.after_idle(self.root.focus_force)
+
+        def submit(event=None):
+            close_dialog()
+            self.connect()
+
+        tk.Button(
+            button_row,
+            text="Close",
+            command=close_dialog,
+            bg="#e2e8f0",
+            fg="#0f172a",
+            activebackground="#cbd5e1",
+            activeforeground="#0f172a",
+            bd=0,
+            padx=18,
+            pady=10,
+            font=("Segoe UI", 10, "bold"),
+        ).pack(side="left", fill="x", expand=True, padx=(0, 8))
+
+        tk.Button(
+            button_row,
+            text="Join Room",
+            command=submit,
+            bg="#2563eb",
+            fg="white",
+            activebackground="#1d4ed8",
+            activeforeground="white",
+            bd=0,
+            padx=18,
+            pady=10,
+            font=("Segoe UI", 10, "bold"),
+        ).pack(side="left", fill="x", expand=True, padx=(8, 0))
+
+        dialog.bind("<Escape>", close_dialog)
+        dialog.bind("<Return>", submit)
+        dialog.grab_set()
+        dialog.focus_force()
+        name_entry.focus_set()
+
+    def _show_incoming_call_dialog(self, caller_name, on_accept, on_decline):
+        if self._active_dialog is not None and self._active_dialog.winfo_exists():
+            self._active_dialog.destroy()
+
+        dialog = tk.Toplevel(self.root)
+        self._active_dialog = dialog
+
+        body = self._make_fullscreen_popup(dialog, "#f8fafc", min_width=320)
+
+        avatar = tk.Canvas(body, width=76, height=76, bg="#f8fafc", highlightthickness=0)
+        avatar.pack()
+        avatar.create_oval(6, 6, 70, 70, fill="#dbeafe", outline="#93c5fd", width=2)
+        avatar.create_text(38, 38, text=(caller_name[:1] or "?").upper(), fill="#1d4ed8", font=("Segoe UI", 24, "bold"))
+
+        tk.Label(body, text="Voice call", bg="#f8fafc", fg="#64748b", font=("Segoe UI", 10, "bold")).pack(pady=(14, 2))
+        tk.Label(body, text=caller_name, bg="#f8fafc", fg="#0f172a", font=("Segoe UI", 18, "bold")).pack()
+        tk.Label(body, text="is calling you", bg="#f8fafc", fg="#334155", font=("Segoe UI", 11)).pack(pady=(4, 18))
+
+        button_row = tk.Frame(body, bg="#f8fafc")
+        button_row.pack(fill="x")
+        confirmed = {"value": False}
+
+        def close_dialog(event=None):
+            if self._active_dialog is dialog:
+                self._active_dialog = None
+            if dialog.winfo_exists():
+                try:
+                    dialog.grab_release()
+                except tk.TclError:
+                    pass
+                dialog.destroy()
+            self.root.after_idle(self.root.focus_force)
+            if not confirmed["value"]:
+                on_decline()
+
+        def accept(event=None):
+            confirmed["value"] = True
+            close_dialog()
+            on_accept()
+
+        decline_button = tk.Button(
+            button_row,
+            text="Decline",
+            command=close_dialog,
+            bg="#ef4444",
+            fg="white",
+            activebackground="#dc2626",
+            activeforeground="white",
+            bd=0,
+            padx=18,
+            pady=10,
+            font=("Segoe UI", 10, "bold"),
+        )
+        decline_button.pack(side="left", fill="x", expand=True, padx=(0, 8))
+
+        accept_button = tk.Button(
+            button_row,
+            text="Accept",
+            command=accept,
+            bg="#22c55e",
+            fg="white",
+            activebackground="#16a34a",
+            activeforeground="white",
+            bd=0,
+            padx=18,
+            pady=10,
+            font=("Segoe UI", 10, "bold"),
+        )
+        accept_button.pack(side="left", fill="x", expand=True, padx=(8, 0))
+
+        dialog.bind("<Escape>", close_dialog)
+        dialog.bind("<Return>", accept)
+
+        dialog.grab_set()
+        dialog.focus_force()
+        accept_button.focus_set()
+
+    def _show_active_call_popup(self, peer_name):
+        self._close_active_call_popup()
+
+        popup = tk.Toplevel(self.root)
+        self._active_call_popup = popup
+
+        body = self._make_fullscreen_popup(popup, "#ecfeff", min_width=300)
+
+        avatar = tk.Canvas(body, width=76, height=76, bg="#ecfeff", highlightthickness=0)
+        avatar.pack()
+        avatar.create_oval(6, 6, 70, 70, fill="#cffafe", outline="#67e8f9", width=2)
+        avatar.create_text(38, 38, text=(peer_name[:1] or "?").upper(), fill="#0f766e", font=("Segoe UI", 24, "bold"))
+
+        tk.Label(body, text="In Call", bg="#ecfeff", fg="#0f766e", font=("Segoe UI", 10, "bold")).pack(pady=(14, 2))
+        tk.Label(body, text=peer_name, bg="#ecfeff", fg="#0f172a", font=("Segoe UI", 18, "bold")).pack()
+        tk.Label(body, text="Voice connection active", bg="#ecfeff", fg="#334155", font=("Segoe UI", 11)).pack(pady=(4, 16))
+
+        meter = tk.Canvas(body, width=180, height=30, bg="#ecfeff", highlightthickness=0)
+        meter.pack(pady=(0, 16))
+        for index, height in enumerate((10, 18, 24, 16, 12, 22, 14)):
+            x0 = 12 + index * 24
+            meter.create_rectangle(x0, 30 - height, x0 + 12, 30, fill="#14b8a6", outline="")
+
+        tk.Button(
+            body,
+            text="Hang Up",
+            command=self._end_active_call,
+            bg="#ef4444",
+            fg="white",
+            activebackground="#dc2626",
+            activeforeground="white",
+            bd=0,
+            padx=18,
+            pady=10,
+            font=("Segoe UI", 10, "bold"),
+        ).pack(fill="x")
+
+        popup.bind("<Escape>", lambda event: self._end_active_call())
+        popup.focus_force()
+
+    def _close_active_call_popup(self):
+        if self._active_call_popup is not None and self._active_call_popup.winfo_exists():
+            try:
+                self._active_call_popup.destroy()
+            except tk.TclError:
+                pass
+        self._active_call_popup = None
 
     def disconnect(self):
         if not self.connected:
@@ -376,8 +547,8 @@ class ChatApp:
             self._show_dialog("Missing name", "Please enter a display name before connecting.")
             return
 
-        self.chat_room = self.room_var.get().strip() or "Tallk Servers"
-        self.room_var.set(self.chat_room)
+        self.chat_room = FIXED_ROOM
+        self.room_label.configure(text=f"Room: {self.chat_room}")
         self._duplicate_kick_handled = False
 
         broker = DEFAULT_BROKER
@@ -424,9 +595,6 @@ class ChatApp:
         self.root.after(0, lambda: self.status_label.configure(text=f"Connected to {DEFAULT_BROKER}:{DEFAULT_PORT}"))
         self.root.after(0, lambda: self.connect_button.configure(state="disabled"))
         client.publish(presence_topic, f"JOIN|{self.username}|{self.session_id}")
-        # Hide inputs and show disconnect
-        self.name_label.grid_forget()
-        self.name_entry.grid_forget()
         self.connect_button.configure(text="Disconnect", command=self.disconnect, state="normal")
 
     def _on_disconnect(self, client, userdata, rc):
@@ -442,13 +610,9 @@ class ChatApp:
         self.participants = set()
         self._update_participants()
         self.receive_queue.put((f"Disconnected from Tallk servers.", True, None))
-        self.root.after(0, lambda: self.connect_button.configure(text="Log In", command=self.connect, state="normal"))
+        self.root.after(0, lambda: self.connect_button.configure(text="Log In", command=self._show_login_popup, state="normal"))
         self.root.after(0, lambda: self.status_label.configure(text="Ready"))
         self.root.after(0, lambda: self._set_call_status("Click someone in the room to start a voice call."))
-        # Restore inputs
-        self.name_label.grid(row=0, column=0)
-        self.name_entry.grid(row=0, column=1, sticky="w")
-        self.connect_button.grid(row=0, column=2, sticky="e")
 
     def _on_message(self, client, userdata, message):
         try:
@@ -526,7 +690,6 @@ class ChatApp:
 
     def _set_call_status(self, text):
         self.call_status_label.configure(text=text)
-        self.hangup_button.configure(state="normal" if self.active_call_id else "disabled")
 
     def _publish_call_control(self, action, call_id, target_name="", target_session=""):
         if not self.connected or self.mqtt_client is None:
@@ -598,7 +761,7 @@ class ChatApp:
             self._publish_call_control("DECLINE", call_id, caller_name, caller_session)
 
         self.root.after(0, self._start_ringtone)
-        self.root.after(0, lambda: self._show_choice_dialog("Incoming call", f"{caller_name} wants to voice call you.", "Accept", accept_call, on_cancel=decline_call, stop_ringtone=False))
+        self.root.after(0, lambda: self._show_incoming_call_dialog(caller_name, accept_call, decline_call))
 
     def _begin_call(self, call_id, peer_name, peer_session):
         self.active_call_id = call_id
@@ -608,6 +771,7 @@ class ChatApp:
         if self.mqtt_client is not None:
             self.mqtt_client.subscribe([(self.audio_topic, 0)])
         self._set_call_status(f"In voice call with {peer_name}.")
+        self._show_active_call_popup(peer_name)
         self._start_audio_streams()
 
     def _end_active_call(self, notify_peer=True, reason="Call ended."):
@@ -620,6 +784,7 @@ class ChatApp:
 
         self._clear_pending_call_timeout()
         self._stop_ringtone()
+        self._close_active_call_popup()
         self._stop_audio_streams()
         if self.mqtt_client is not None and self.audio_topic:
             try:
@@ -865,17 +1030,6 @@ class ChatApp:
 
         self._show_dialog("Username in use", "That username is already online. You were disconnected.")
         self._duplicate_kick_handled = False
-
-    def _join_selected_room(self):
-        selection = self.rooms_listbox.curselection()
-        if selection:
-            self.room_var.set(self.rooms_listbox.get(selection[0]))
-            if not self.connected:
-                self.connect()
-
-    def _refresh_active_rooms(self):
-        self._update_active_rooms()
-        self.root.after(1000, self._refresh_active_rooms)
 
     def send_message(self):
         if not self.connected or self.mqtt_client is None:
