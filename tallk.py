@@ -688,10 +688,11 @@ class ChatApp:
 
         topic = message.topic
         if topic.endswith("/presence"):
-            parts = payload.split("|", 2)
+            parts = payload.split("|", 3)
             action = parts[0]
             username = parts[1] if len(parts) > 1 else ""
             sender_session = parts[2] if len(parts) > 2 else None
+            sender_role = parts[3] if len(parts) > 3 else "app"
 
             if action == "JOIN":
                 if sender_session == self.session_id:
@@ -703,7 +704,7 @@ class ChatApp:
                 if username != self.username:
                     presence_topic = f"tallk/{self.chat_room}/presence"
                     client.publish(presence_topic, f"HERE|{self.username}|{self.session_id}|app")
-                self._set_participant_role(username, "app", present=True)
+                self._set_participant_role(username, sender_role, present=True)
                 self._update_participants()
                 self.receive_queue.put((f"{username} is available.", True, None))
             elif action == "HERE":
@@ -712,12 +713,12 @@ class ChatApp:
                 if username == self.username and sender_session:
                     self.root.after(0, self._handle_duplicate_username)
                     return
-                self._set_participant_role(username, "app", present=True)
+                self._set_participant_role(username, sender_role, present=True)
                 self._update_participants()
             elif action == "LEAVE":
                 if sender_session == self.session_id:
                     return
-                self._set_participant_role(username, "app", present=False)
+                self._set_participant_role(username, sender_role, present=False)
                 self._update_participants()
                 if username == self.active_call_peer:
                     self.root.after(0, lambda: self._end_active_call(notify_peer=False, reason=f"{username} left the room."))

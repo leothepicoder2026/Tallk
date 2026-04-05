@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tallk Web</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <div class="window">
+      <header class="titlebar">
+        <div class="brand">Tallk Web</div>
+        <button id="loginButton" class="primary-button small" type="button">Log In</button>
+      </header>
+
+      <section class="status-strip">
+        <div id="statusText">Ready</div>
+        <div id="callStatusText" class="muted">Click someone in the room to start a voice call.</div>
+      </section>
+
+      <main class="content-grid">
+        <section class="panel conversation-panel">
+          <div class="panel-title">Conversation</div>
+          <div id="chatArea" class="chat-area" aria-live="polite"></div>
+          <form id="messageForm" class="message-form">
+            <input id="messageInput" type="text" placeholder="Type a message..." autocomplete="off">
+            <button type="submit" class="primary-button">Send</button>
+          </form>
+        </section>
+
+        <aside class="panel people-panel">
+          <div class="panel-title">People Online</div>
+          <p class="panel-copy">Click a name to start a voice call.</p>
+          <div id="participantsList" class="participants-list"></div>
+        </aside>
+      </main>
+    </div>
+  </div>
+
+  <div id="modalRoot"></div>
+
+  <audio id="ringtoneAudio" src="../sounds/call_V2.wav" preload="auto" loop></audio>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
