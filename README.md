@@ -22,5 +22,9 @@ py -3.14 tallk.py
 
 - `paho-mqtt` is required for chat and presence.
 - `sounddevice` is required for live voice calls.
-- `sounds/call.wav` should be included when you package or share the app so the ringtone works as expected.
 
+
+
+
+
+Also, it was mostly created by ChatGPT Codex, so give Codex a round of applause.
