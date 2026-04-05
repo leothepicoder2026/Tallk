@@ -497,6 +497,8 @@ class ChatApp:
         if self.audio_topic and topic == self.audio_topic:
             self._handle_audio_message(payload)
             return
+        if "/call-audio/" in topic:
+            return
 
         self.receive_queue.put((payload, False, "receive"))
 
@@ -730,7 +732,7 @@ class ChatApp:
         try:
             import winsound
 
-            call_sound = SOUNDS_DIR / "call.wav"
+            call_sound = (SOUNDS_DIR / "call.wav").resolve()
             if call_sound.exists():
                 winsound.PlaySound(str(call_sound), winsound.SND_FILENAME | winsound.SND_ASYNC | winsound.SND_LOOP)
                 return
@@ -847,13 +849,13 @@ class ChatApp:
         try:
             import winsound
             sound_files = {
-                "call": SOUNDS_DIR / "call.wav",
+                "call": (SOUNDS_DIR / "call.wav").resolve(),
             }
             sound_path = sound_files.get(kind)
             if sound_path and sound_path.exists():
                 winsound.PlaySound(str(sound_path), winsound.SND_FILENAME | winsound.SND_ASYNC)
             elif kind == "call":
-                winsound.MessageBeep(winsound.MB_ICONEXCLAMATION)
+                self.root.bell()
             else:
                 self.root.bell()
         except Exception:
