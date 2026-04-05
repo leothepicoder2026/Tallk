@@ -1,4 +1,4 @@
-<<<<<<< HEAD
+
 # TALLK - THE NEXT GEN CHATTING APP
 > [!IMPORTANT]
 > Before running tallk.py, ensure you have Python installed and run the command "pip install paho-mqtt sounddevice", otherwise Tallk will not launch properly.
@@ -8,6 +8,4 @@ Tallk is a chatting app, It's simple:
 2. Log in
 
 When you and other Tallk users sign in, you will automatically enter a chatroom with other Tallk users that are online. You can also click on a Tallk user's name to start a voice call.
-=======
-Tallk lets you talk with people around the world
->>>>>>> 04c4f34fe9f0cb70d1839979660ecb2bc82804de
+
