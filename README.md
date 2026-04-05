@@ -1,3 +1,1 @@
-tallk chatting app
-
-probably not gonna work on it...
+Tallk lets you talk with people around the world
