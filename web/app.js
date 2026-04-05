@@ -17,6 +17,8 @@ const els = {
   participantsList: document.querySelector("#participantsList"),
   modalRoot: document.querySelector("#modalRoot"),
   ringtoneAudio: document.querySelector("#ringtoneAudio"),
+  mobileNavButtons: [...document.querySelectorAll(".mobile-nav-button")],
+  panels: [...document.querySelectorAll("[data-panel]")],
 };
 
 class TallkWebApp {
@@ -42,8 +44,10 @@ class TallkWebApp {
     this.playbackGain = null;
     this.playbackCursor = 0;
     this.duplicateKickHandled = false;
+    this.activePanel = "chat";
 
     this.bindEvents();
+    this.setActivePanel(this.activePanel);
     this.renderParticipants();
     this.showLoginDialog();
   }
@@ -61,6 +65,10 @@ class TallkWebApp {
       event.preventDefault();
       this.sendMessage();
     });
+
+    for (const button of els.mobileNavButtons) {
+      button.addEventListener("click", () => this.setActivePanel(button.dataset.panelTarget));
+    }
   }
 
   appendMessage(message, isSystem = false) {
@@ -138,6 +146,18 @@ class TallkWebApp {
 
       button.append(dot, label);
       els.participantsList.append(button);
+    }
+  }
+
+  setActivePanel(panelName) {
+    this.activePanel = panelName;
+
+    for (const button of els.mobileNavButtons) {
+      button.classList.toggle("is-active", button.dataset.panelTarget === panelName);
+    }
+
+    for (const panel of els.panels) {
+      panel.classList.toggle("is-active", panel.dataset.panel === panelName);
     }
   }
 
@@ -446,6 +466,7 @@ class TallkWebApp {
     const callId = crypto.randomUUID().replace(/-/g, "").slice(0, 10);
     this.pendingCallId = callId;
     this.setCallStatus(`Calling ${username}...`);
+    this.setActivePanel("chat");
     this.publishCallControl("REQUEST", callId, username, "");
     this.schedulePendingCallTimeout(callId, username);
   }
