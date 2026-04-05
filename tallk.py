@@ -710,9 +710,6 @@ class ChatApp:
             elif action == "HERE":
                 if sender_session == self.session_id:
                     return
-                if username == self.username and sender_session:
-                    self.root.after(0, self._handle_duplicate_username)
-                    return
                 self._set_participant_role(username, sender_role, present=True)
                 self._update_participants()
             elif action == "LEAVE":
@@ -1098,7 +1095,6 @@ class ChatApp:
             self.mqtt_client = None
 
         self._show_dialog("Username in use", "That username is already online. You were disconnected.")
-        self._duplicate_kick_handled = False
 
     def send_message(self):
         if not self.connected or self.mqtt_client is None:

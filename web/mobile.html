@@ -4,6 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#111827">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="mobile-web-app-capable" content="yes">
   <title>Tallk Mobile</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -21,6 +24,24 @@
       <section class="status-strip">
         <div id="statusText">Ready</div>
         <div id="callStatusText" class="muted">Click someone in the room to start a voice call.</div>
+      </section>
+
+      <section class="mobile-summary">
+        <div class="summary-card primary">
+          <span class="summary-label">Room</span>
+          <strong id="roomValue">Tallk Servers</strong>
+          <span class="summary-copy">Shared Tallk chat and voice room</span>
+        </div>
+        <div class="summary-grid">
+          <div class="summary-card">
+            <span class="summary-label">Server</span>
+            <strong id="serverValue">test.mosquitto.org</strong>
+          </div>
+          <div class="summary-card">
+            <span class="summary-label">Online</span>
+            <strong id="onlineCount">0 people</strong>
+          </div>
+        </div>
       </section>
 
       <nav class="mobile-nav" aria-label="Mobile sections">

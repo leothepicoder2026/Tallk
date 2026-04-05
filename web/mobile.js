@@ -11,6 +11,9 @@ const els = {
   loginButton: document.querySelector("#loginButton"),
   statusText: document.querySelector("#statusText"),
   callStatusText: document.querySelector("#callStatusText"),
+  roomValue: document.querySelector("#roomValue"),
+  serverValue: document.querySelector("#serverValue"),
+  onlineCount: document.querySelector("#onlineCount"),
   chatArea: document.querySelector("#chatArea"),
   messageForm: document.querySelector("#messageForm"),
   messageInput: document.querySelector("#messageInput"),
@@ -47,6 +50,7 @@ class TallkWebApp {
     this.activePanel = "chat";
 
     this.bindEvents();
+    this.updateOverview();
     this.setActivePanel(this.activePanel);
     this.renderParticipants();
     this.showLoginDialog();
@@ -100,6 +104,19 @@ class TallkWebApp {
     els.callStatusText.textContent = text;
   }
 
+  updateOverview() {
+    if (els.roomValue) {
+      els.roomValue.textContent = this.chatRoom;
+    }
+    if (els.serverValue) {
+      els.serverValue.textContent = DEFAULT_BROKER;
+    }
+    if (els.onlineCount) {
+      const count = this.participantRoles.size;
+      els.onlineCount.textContent = `${count} ${count === 1 ? "person" : "people"}`;
+    }
+  }
+
   getColor(username) {
     if (!this.usernameColors.has(username)) {
       const seed = [...username].reduce((sum, char) => sum + char.charCodeAt(0), 0);
@@ -147,6 +164,8 @@ class TallkWebApp {
       button.append(dot, label);
       els.participantsList.append(button);
     }
+
+    this.updateOverview();
   }
 
   setActivePanel(panelName) {
@@ -411,10 +430,6 @@ class TallkWebApp {
       if (senderSession === this.sessionId) {
         return;
       }
-      if (username === this.username && senderSession) {
-        this.handleDuplicateUsername();
-        return;
-      }
       this.setParticipantRole(username, senderRole, true);
       this.renderParticipants();
       return;
@@ -452,7 +467,6 @@ class TallkWebApp {
       this.client = null;
     }
     this.showInfoDialog("Username in use", "That username is already online. You were disconnected.");
-    this.duplicateKickHandled = false;
   }
 
   publishPresence(action, username, sessionId, role) {
