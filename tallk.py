@@ -52,6 +52,7 @@ class ChatApp:
         self.ringtone_after_id = None
         self.ringtone_active = False
         self.ringtone_thread = None
+        self.ringtone_error = None
         self.audio_topic = None
         self.audio_streaming = False
         self.audio_input_stream = None
@@ -729,20 +730,42 @@ class ChatApp:
         if self.ringtone_active:
             return
         self.ringtone_active = True
-        try:
-            import winsound
-
-            call_sound = (SOUNDS_DIR / "call.wav").resolve()
-            if call_sound.exists():
-                winsound.PlaySound(str(call_sound), winsound.SND_FILENAME | winsound.SND_ASYNC | winsound.SND_LOOP)
-                return
-        except Exception:
-            pass
+        self.ringtone_error = None
+        if self._start_call_wav_ringtone():
+            return
 
         self.ringtone_thread = threading.Thread(target=self._ringtone_fallback_loop, daemon=True)
         self.ringtone_thread.start()
 
+    def _start_call_wav_ringtone(self):
+        call_sound = (SOUNDS_DIR / "call.wav").resolve()
+        if not call_sound.exists():
+            self.ringtone_error = f"Missing ringtone file: {call_sound}"
+            return False
+
+        try:
+            import winsound
+
+            attempts = [
+                winsound.SND_FILENAME | winsound.SND_ASYNC | winsound.SND_LOOP,
+                winsound.SND_FILENAME | winsound.SND_LOOP,
+                winsound.SND_FILENAME | winsound.SND_ASYNC,
+            ]
+            for flags in attempts:
+                try:
+                    winsound.PlaySound(str(call_sound), flags)
+                    return True
+                except Exception as exc:
+                    self.ringtone_error = str(exc)
+        except Exception as exc:
+            self.ringtone_error = str(exc)
+            return False
+
+        return False
+
     def _ringtone_fallback_loop(self):
+        if self.ringtone_error:
+            self.root.after(0, lambda: self._set_call_status(f"Incoming call. Ringtone fallback in use: {self.ringtone_error}"))
         while self.ringtone_active:
             try:
                 import winsound
@@ -777,6 +800,7 @@ class ChatApp:
                 pass
         self.ringtone_after_id = None
         self.ringtone_thread = None
+        self.ringtone_error = None
 
     def _handle_duplicate_username(self):
         if self._duplicate_kick_handled:
