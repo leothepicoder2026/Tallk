@@ -1,9 +1,12 @@
 import base64
 from pathlib import Path
 import queue
+import tempfile
 import threading
 import time
+import urllib.request
 import uuid
+import wave
 import tkinter as tk
 from tkinter.scrolledtext import ScrolledText
 
@@ -16,11 +19,13 @@ except ImportError:
 
 BASE_DIR = Path(__file__).resolve().parent
 SOUNDS_DIR = BASE_DIR / "sounds"
+RINGTONE_CACHE_DIR = Path(tempfile.gettempdir()) / "tallk"
 DEFAULT_BROKER = "test.mosquitto.org"
 DEFAULT_PORT = 1883
 AUDIO_SAMPLE_RATE = 16000
 AUDIO_CHANNELS = 1
 AUDIO_BLOCKSIZE = 2048
+CALL_SOUND_URL = "https://raw.githubusercontent.com/leothepicoder2026/Tallk/main/sounds/call.wav"
 
 
 class ChatApp:
@@ -738,30 +743,71 @@ class ChatApp:
         self.ringtone_thread.start()
 
     def _start_call_wav_ringtone(self):
-        call_sound = (SOUNDS_DIR / "call.wav").resolve()
-        if not call_sound.exists():
-            self.ringtone_error = f"Missing ringtone file: {call_sound}"
+        call_sound = self._resolve_call_sound_path()
+        if call_sound is None:
             return False
 
         try:
             import winsound
-
-            attempts = [
-                winsound.SND_FILENAME | winsound.SND_ASYNC | winsound.SND_LOOP,
-                winsound.SND_FILENAME | winsound.SND_LOOP,
-                winsound.SND_FILENAME | winsound.SND_ASYNC,
-            ]
-            for flags in attempts:
-                try:
-                    winsound.PlaySound(str(call_sound), flags)
-                    return True
-                except Exception as exc:
-                    self.ringtone_error = str(exc)
+            with wave.open(str(call_sound), "rb") as wav_file:
+                frame_rate = wav_file.getframerate()
+                frame_count = wav_file.getnframes()
+            duration = max(frame_count / frame_rate, 0.5) if frame_rate else 2.0
+            self.ringtone_thread = threading.Thread(
+                target=self._call_wav_ringtone_loop,
+                args=(str(call_sound), duration),
+                daemon=True,
+            )
+            self.ringtone_thread.start()
+            return True
         except Exception as exc:
             self.ringtone_error = str(exc)
             return False
 
-        return False
+    def _resolve_call_sound_path(self):
+        cached_sound = self._download_call_sound()
+        if cached_sound is not None:
+            return cached_sound
+
+        local_sound = (SOUNDS_DIR / "call.wav").resolve()
+        if local_sound.exists():
+            return local_sound
+
+        if not self.ringtone_error:
+            self.ringtone_error = f"Missing ringtone file: {local_sound}"
+        return None
+
+    def _download_call_sound(self):
+        try:
+            RINGTONE_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+            cached_sound = RINGTONE_CACHE_DIR / "call.wav"
+            urllib.request.urlretrieve(CALL_SOUND_URL, cached_sound)
+            return cached_sound
+        except Exception as exc:
+            self.ringtone_error = f"GitHub ringtone download failed: {exc}"
+            return None
+
+    def _call_wav_ringtone_loop(self, sound_path, duration):
+        try:
+            import winsound
+        except Exception as exc:
+            self.ringtone_error = str(exc)
+            self.ringtone_active = False
+            return
+
+        while self.ringtone_active:
+            try:
+                winsound.PlaySound(sound_path, winsound.SND_FILENAME | winsound.SND_ASYNC)
+            except Exception as exc:
+                self.ringtone_error = str(exc)
+                self.ringtone_active = False
+                break
+
+            steps = max(int(duration / 0.1), 1)
+            for _ in range(steps):
+                if not self.ringtone_active:
+                    break
+                time.sleep(0.1)
 
     def _ringtone_fallback_loop(self):
         if self.ringtone_error:
