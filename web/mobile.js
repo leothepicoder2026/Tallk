@@ -17,6 +17,8 @@ const els = {
   participantsList: document.querySelector("#participantsList"),
   modalRoot: document.querySelector("#modalRoot"),
   ringtoneAudio: document.querySelector("#ringtoneAudio"),
+  mobileNavButtons: [...document.querySelectorAll(".mobile-nav-button")],
+  panels: [...document.querySelectorAll("[data-panel]")],
 };
 
 class TallkWebApp {
@@ -42,8 +44,10 @@ class TallkWebApp {
     this.playbackGain = null;
     this.playbackCursor = 0;
     this.duplicateKickHandled = false;
+    this.activePanel = "chat";
 
     this.bindEvents();
+    this.setActivePanel(this.activePanel);
     this.renderParticipants();
     this.showLoginDialog();
   }
@@ -61,6 +65,10 @@ class TallkWebApp {
       event.preventDefault();
       this.sendMessage();
     });
+
+    for (const button of els.mobileNavButtons) {
+      button.addEventListener("click", () => this.setActivePanel(button.dataset.panelTarget));
+    }
   }
 
   appendMessage(message, isSystem = false) {
@@ -141,6 +149,18 @@ class TallkWebApp {
     }
   }
 
+  setActivePanel(panelName) {
+    this.activePanel = panelName;
+
+    for (const button of els.mobileNavButtons) {
+      button.classList.toggle("is-active", button.dataset.panelTarget === panelName);
+    }
+
+    for (const panel of els.panels) {
+      panel.classList.toggle("is-active", panel.dataset.panel === panelName);
+    }
+  }
+
   showModal(content) {
     this.closeModal();
     const overlay = document.createElement("div");
@@ -177,6 +197,35 @@ class TallkWebApp {
     `;
     dialog.querySelector("button").addEventListener("click", () => this.closeModal());
     this.showModal(dialog);
+  }
+
+  createCallScreen({ title, subtitle, bodyText, avatarText, actions, heroMode }) {
+    const dialog = document.createElement("div");
+    dialog.className = "dialog fullscreen-call";
+
+    const hero = document.createElement("div");
+    hero.className = `dialog-hero fullscreen-call ${heroMode}`.trim();
+    hero.innerHTML = `
+      <div class="avatar">${escapeHtml(avatarText)}</div>
+      <h2 class="dialog-title">${escapeHtml(title)}</h2>
+      <p class="dialog-subtitle">${escapeHtml(subtitle)}</p>
+      <div class="call-meta">${escapeHtml(bodyText)}</div>
+    `;
+
+    const actionsWrap = document.createElement("div");
+    actionsWrap.className = `call-actions${actions.length === 1 ? " single" : ""}`;
+
+    for (const action of actions) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = `call-button ${action.kind}`;
+      button.textContent = action.label;
+      button.addEventListener("click", action.onClick);
+      actionsWrap.append(button);
+    }
+
+    dialog.append(hero, actionsWrap);
+    return dialog;
   }
 
   showLoginDialog() {
@@ -446,6 +495,7 @@ class TallkWebApp {
     const callId = crypto.randomUUID().replace(/-/g, "").slice(0, 10);
     this.pendingCallId = callId;
     this.setCallStatus(`Calling ${username}...`);
+    this.setActivePanel("chat");
     this.publishCallControl("REQUEST", callId, username, "");
     this.schedulePendingCallTimeout(callId, username);
   }
@@ -493,33 +543,35 @@ class TallkWebApp {
 
     this.startRingtone();
 
-    const dialog = document.createElement("div");
-    dialog.className = "dialog";
-    dialog.innerHTML = `
-      <div class="dialog-hero incoming">
-        <div class="avatar">${escapeHtml((callerName[0] || "?").toUpperCase())}</div>
-        <h2 class="dialog-title">${escapeHtml(callerName)}</h2>
-        <p class="dialog-subtitle">Incoming voice call</p>
-      </div>
-      <div class="dialog-body">Answer now or decline the call.</div>
-      <div class="dialog-actions">
-        <button class="danger-button" type="button" id="declineCall">Decline</button>
-        <button class="primary-button" type="button" id="acceptCall">Accept</button>
-      </div>
-    `;
-
     const decline = () => {
       this.stopRingtone();
       this.closeModal();
       this.publishCallControl("DECLINE", callId, callerName, callerSession);
     };
 
-    dialog.querySelector("#declineCall").addEventListener("click", decline);
-    dialog.querySelector("#acceptCall").addEventListener("click", async () => {
-      this.stopRingtone();
-      this.closeModal();
-      this.publishCallControl("ACCEPT", callId, callerName, callerSession);
-      await this.beginCall(callId, callerName, callerSession);
+    const dialog = this.createCallScreen({
+      title: callerName,
+      subtitle: "Incoming voice call",
+      bodyText: "Answer now or decline",
+      avatarText: (callerName[0] || "?").toUpperCase(),
+      heroMode: "incoming",
+      actions: [
+        {
+          label: "Decline",
+          kind: "decline",
+          onClick: decline,
+        },
+        {
+          label: "Accept",
+          kind: "accept",
+          onClick: async () => {
+            this.stopRingtone();
+            this.closeModal();
+            this.publishCallControl("ACCEPT", callId, callerName, callerSession);
+            await this.beginCall(callId, callerName, callerSession);
+          },
+        },
+      ],
     });
 
     this.showModal(dialog);
@@ -543,21 +595,20 @@ class TallkWebApp {
   }
 
   showActiveCallDialog(peerName) {
-    const dialog = document.createElement("div");
-    dialog.className = "dialog";
-    dialog.innerHTML = `
-      <div class="dialog-hero calling">
-        <div class="avatar">${escapeHtml((peerName[0] || "?").toUpperCase())}</div>
-        <h2 class="dialog-title">${escapeHtml(peerName)}</h2>
-        <p class="dialog-subtitle">Live voice call</p>
-      </div>
-      <div class="dialog-body">Connection is active.</div>
-      <div class="dialog-actions">
-        <button class="danger-button" type="button">Hang Up</button>
-      </div>
-    `;
-
-    dialog.querySelector("button").addEventListener("click", () => this.endActiveCall(true));
+    const dialog = this.createCallScreen({
+      title: peerName,
+      subtitle: "Live voice call",
+      bodyText: "Connection is active",
+      avatarText: (peerName[0] || "?").toUpperCase(),
+      heroMode: "calling",
+      actions: [
+        {
+          label: "Hang Up",
+          kind: "hangup",
+          onClick: () => this.endActiveCall(true),
+        },
+      ],
+    });
     this.showModal(dialog);
   }
 
