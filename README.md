@@ -10,10 +10,7 @@ Tallk is a simple chat and voice-call app.
 
 ```powershell
 py -3.14 tallk.py
-```
-
-Use Tallk web:
-https://leothepicoder2026.github.io/Tallk/web/index
+``
 
 
 ## How It Works
